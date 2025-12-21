@@ -1,0 +1,12 @@
+rootProject.name = 'spring-performance-benchmark'
+
+include 'common'
+include 'mvc-app'
+include 'webflux-app'
+
+pluginManagement {
+    repositories {
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
