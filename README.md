@@ -72,3 +72,274 @@ Spring Boot 4.0 + Java 25 기반 Tomcat MVC와 Netty WebFlux 성능 비교 프�
 - Server PC에서 Docker Compose 실행
 - Client PC에서 `TARGET_HOST=<SERVER_IP>` 지정하여 k6 실행
 
+## 🏗️ 프로젝트 구조
+
+```
+spring-performance-benchmark/
+├── mvc-app/                       # Spring MVC + Tomcat
+│   ├── src/
+│   │   └── main/
+│   │       ├── java/
+│   │       │   └── com/benchmark/mvc/
+│   │       │       ├── MvcApplication.java
+│   │       │       ├── controller/
+│   │       │       ├── service/
+│   │       │       └── config/
+│   │       └── resources/
+│   │           └── application.yml
+│   ├── Dockerfile
+│   └── build.gradle
+│
+├── webflux-app/                   # Spring WebFlux + Netty
+│   ├── src/
+│   │   └── main/
+│   │       ├── java/
+│   │       │   └── com/benchmark/webflux/
+│   │       │       ├── WebFluxApplication.java
+│   │       │       ├── controller/
+│   │       │       ├── service/
+│   │       │       └── config/
+│   │       └── resources/
+│   │           └── application.yml
+│   ├── Dockerfile
+│   └── build.gradle
+│
+├── common/                        # 공통 모듈
+│   ├── src/
+│   │   └── main/java/
+│   │       └── com/benchmark/common/
+│   │           ├── dto/
+│   │           └── util/
+│   └── build.gradle
+│
+├── docker/                        # Docker 설정
+│   ├── docker-compose.yml         # 전체 스택 (MVC + WebFlux + Monitoring)
+│   ├── docker-compose.mvc.yml     # MVC만 테스트
+│   ├── docker-compose.webflux.yml # WebFlux만 테스트
+│   └── nginx/
+│       └── nginx.conf
+│
+├── monitoring/                    # 모니터링 설정
+│   ├── prometheus/
+│   │   └── prometheus.yml
+│   └── grafana/
+│       ├── provisioning/
+│       │   ├── dashboards/
+│       │   └── datasources/
+│       └── dashboards/
+│
+├── load-test/                     # 부하 테스트 (Client PC에서 실행)
+│   ├── k6/
+│   │   ├── scenarios/
+│   │   │   ├── smoke-test.js
+│   │   │   ├── load-test.js
+│   │   │   ├── stress-test.js
+│   │   │   └── spike-test.js
+│   │   └── lib/
+│   │       └── config.js
+│   └── README.md                  # 부하 테스트 실행 가이드
+│
+├── scripts/                       # 실행 스크립트
+│   ├── server/                    # Server PC용
+│   │   ├── start-all.sh
+│   │   ├── start-all.bat
+│   │   ├── start-mvc.sh
+│   │   ├── start-mvc.bat
+│   │   ├── start-webflux.sh
+│   │   ├── start-webflux.bat
+│   │   ├── stop-all.sh
+│   │   └── stop-all.bat
+│   └── client/                    # Client PC용
+│       ├── run-load-test.sh
+│       ├── run-load-test.bat
+│       └── README.md
+│
+├── results/                       # 테스트 결과 저장
+│
+├── settings.gradle
+├── build.gradle
+└── README.md
+```
+
+## 🎯 테스트 시나리오
+
+### API 엔드포인트
+
+| 엔드포인트 | 설명 | 테스트 목적 |
+|-----------|------|------------|
+| `GET /mvc/api/simple` | 간단한 JSON 응답 | 기본 처리량 |
+| `GET /mvc/api/delay/{ms}` | 지연 응답 | I/O 바운드 성능 |
+| `GET /mvc/api/cpu/{iterations}` | CPU 집약적 계산 | CPU 바운드 성능 |
+| `GET /mvc/api/db/users` | DB 조회 | DB I/O 성능 |
+| `POST /mvc/api/db/users` | DB 저장 | 쓰기 성능 |
+| `GET /mvc/api/external` | 외부 API 호출 | 네트워크 I/O |
+| `GET /mvc/api/stream` | 대용량 스트리밍 | 스트리밍 성능 |
+
+> WebFlux는 `/webflux/api/*` 경로로 동일한 엔드포인트 제공
+
+### 부하 테스트 유형
+
+| 시나리오 | VUs | 시간 | 목적 |
+|---------|-----|------|------|
+| Smoke Test | 5 | 1분 | 기본 동작 확인 |
+| Load Test | 100 | 10분 | 일반 부하 성능 |
+| Stress Test | 300 | 10분 | 고부하 한계 확인 |
+| Spike Test | 10→500→10 | 5분 | 급격한 트래픽 대응 |
+
+## 📊 측정 지표
+
+### Response Time Percentiles
+- P50, P90, P95, P99, Max
+
+### System Metrics
+- CPU 사용률
+- Memory 사용량 (Heap/Non-Heap)
+- GC 횟수 및 시간
+- 스레드 수
+
+### Application Metrics
+- Throughput (RPS)
+- Error Rate
+- Connection Pool 상태
+
+## 🛠️ 기술 스택
+
+| 구분 | MVC App | WebFlux App |
+|------|---------|-------------|
+| Framework | Spring Boot 4.0 | Spring Boot 4.0 |
+| Java | 25 | 25 |
+| Server | Tomcat 11 | Netty |
+| DB Client | JDBC / HikariCP | R2DBC |
+| HTTP Client | RestClient | WebClient |
+
+### 인프라
+- **Container**: Docker + Docker Compose
+- **Reverse Proxy**: Nginx
+- **Metrics**: Micrometer + Prometheus
+- **Visualization**: Grafana
+- **Load Testing**: k6
+
+## 🚀 Quick Start
+
+### 사전 요구사항
+
+**Server PC (A):**
+```bash
+# Docker & Docker Compose
+docker --version
+docker compose version
+
+# Java 25 (빌드용)
+java -version
+```
+
+**Client PC (B):**
+```bash
+# k6 설치
+# macOS
+brew install k6
+
+# Windows
+choco install k6
+
+# Linux
+sudo apt install k6
+```
+
+### Step 1: 프로젝트 빌드 (Server PC)
+
+```bash
+# Windows
+gradlew.bat clean build
+
+# Linux/Mac
+./gradlew clean build
+```
+
+### Step 2: Docker 이미지 빌드 및 실행 (Server PC)
+
+```bash
+# 전체 스택 실행 (MVC + WebFlux + Monitoring)
+cd docker
+docker compose up -d --build
+
+# 또는 개별 실행
+docker compose -f docker-compose.mvc.yml up -d --build
+docker compose -f docker-compose.webflux.yml up -d --build
+```
+
+### Step 3: 서비스 확인
+
+| 서비스 | URL | 설명 |
+|--------|-----|------|
+| MVC API | http://SERVER_IP/mvc/api/info | MVC 앱 |
+| WebFlux API | http://SERVER_IP/webflux/api/info | WebFlux 앱 |
+| Prometheus | http://SERVER_IP:9090 | 메트릭 수집 |
+| Grafana | http://SERVER_IP:3000 | 대시보드 (admin/admin) |
+
+### Step 4: 부하 테스트 실행 (Client PC)
+
+```bash
+# 프로젝트 클론 (Client PC에서)
+git clone <repository>
+cd spring-performance-benchmark/load-test
+
+# MVC 테스트
+k6 run --env TARGET_HOST=<SERVER_IP> --env APP_TYPE=mvc k6/scenarios/load-test.js
+
+# WebFlux 테스트
+k6 run --env TARGET_HOST=<SERVER_IP> --env APP_TYPE=webflux k6/scenarios/load-test.js
+```
+
+### Step 5: 결과 확인
+
+- **실시간**: Grafana 대시보드 (http://SERVER_IP:3000)
+- **k6 결과**: 터미널 출력 및 `results/` 디렉토리
+
+## 🔧 Docker 리소스 제한 설정
+
+`docker/docker-compose.yml`에서 리소스 조정:
+
+```yaml
+services:
+  mvc-app:
+    deploy:
+      resources:
+        limits:
+          cpus: '2'        # CPU 코어 수
+          memory: 1G       # 메모리 제한
+        reservations:
+          cpus: '1'
+          memory: 512M
+```
+
+## 📈 예상 결과
+
+### I/O 바운드 워크로드
+```
+WebFlux > MVC (동일 리소스 대비 높은 동시성)
+```
+
+### CPU 바운드 워크로드
+```
+MVC ≈ WebFlux (큰 차이 없음)
+```
+
+### 메모리 사용량
+```
+WebFlux < MVC (이벤트 루프 특성)
+```
+
+## 🤔 고려사항
+
+1. **네트워크 분리**: Client PC와 Server PC 간 네트워크 지연 고려
+2. **리소스 격리**: Docker로 CPU/Memory 제한하여 공정한 비교
+3. **Warm-up**: 테스트 전 JIT 최적화를 위한 워밍업 필요
+4. **GC 영향**: GC 설정이 결과에 영향을 미침
+
+## 📚 참고 자료
+
+- [Spring Boot 4.0 Release Notes](https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-4.0-Release-Notes)
+- [Spring WebFlux Documentation](https://docs.spring.io/spring-framework/reference/web/webflux.html)
+- [k6 Documentation](https://k6.io/docs/)
+- [Docker Resource Constraints](https://docs.docker.com/config/containers/resource_constraints/)
