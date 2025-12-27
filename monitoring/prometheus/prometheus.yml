@@ -1,0 +1,20 @@
+global:
+  scrape_interval: 5s
+  evaluation_interval: 5s
+
+scrape_configs:
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  - job_name: 'mvc-app'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: ['mvc-app:8080']
+    scrape_interval: 5s
+
+  - job_name: 'webflux-app'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: ['webflux-app:8081']
+    scrape_interval: 5s
